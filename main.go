@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -30,6 +31,7 @@ var (
 	serverURL    string
 	localDir     string
 	logFilePath  string
+	resourcesDir string
 	pollInterval time.Duration
 )
 
@@ -107,7 +109,12 @@ func loadConfig() error {
 	}
 
 	serverURL = config.ServerURL
-	localDir = filepath.Join(execDir, "./resources/exts/preload")
+	if runtime.GOOS == "darwin" {
+		resourcesDir = "./Resources/exts/preload"
+	} else {
+		resourcesDir = "./resources/exts/preload"
+	}
+	localDir = filepath.Join(execDir, resourcesDir)
 	logFilePath = filepath.Join(execDir, "update.log")
 	pollDuration, err := time.ParseDuration(config.PollInterval)
 	if err != nil {
