@@ -110,7 +110,7 @@ func loadConfig() error {
 
 	serverURL = config.ServerURL
 	if runtime.GOOS == "darwin" {
-		resourcesDir = "./Resources/exts/preload"
+		resourcesDir = "../../Resources/exts/preload"
 	} else {
 		resourcesDir = "./resources/exts/preload"
 	}
