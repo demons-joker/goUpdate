@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -22,24 +23,29 @@ var logger service.Logger
 type myProgram struct{}
 
 type Config struct {
-	ServerURL    string `json:"serverURL"`
-	PollInterval string `json:"pollInterval"`
+	ServerURL      string `json:"serverURL"`
+	PollInterval   string `json:"pollInterval"`
+	CurrentVersion int    `json:"currentVersion"`
 }
 
 var (
 	serverURL    string
 	localDir     string
 	logFilePath  string
+	resourcesDir string
 	pollInterval time.Duration
+	config       Config
 )
 
 type FileInfo struct {
-	Name    string `json:"Name"`
-	Size    int    `json:"Size"`
-	MD5     string `json:"MD5"`
-	Time    int64  `json:"Time"`
-	Path    string `json:"Path"`
-	Version int    `json:"Version"`
+	Name          string `json:"Name"`
+	Size          int    `json:"Size"`
+	MD5           string `json:"MD5"`
+	Time          int64  `json:"Time"`
+	Path          string `json:"Path"`
+	Version       int    `json:"Version"`
+	MinVersion    int    `json:"MinVersion"`
+	EnabledUpdate int    `json:"IsUpdate"`
 }
 
 func (p *myProgram) Start(s service.Service) error {
@@ -107,7 +113,12 @@ func loadConfig() error {
 	}
 
 	serverURL = config.ServerURL
-	localDir = filepath.Join(execDir, "./resources/exts/preload")
+	if runtime.GOOS == "darwin" {
+		resourcesDir = "../../Resources/exts/preload"
+	} else {
+		resourcesDir = "./resources/exts/preload"
+	}
+	localDir = filepath.Join(execDir, resourcesDir)
 	logFilePath = filepath.Join(execDir, "update.log")
 	pollDuration, err := time.ParseDuration(config.PollInterval)
 	if err != nil {
@@ -170,7 +181,6 @@ func updatePreloadJSONIfNeeded() error {
 
 	return compareAndUpdateFiles(localPreloadPath)
 }
-
 func compareAndUpdateFiles(localPreloadPath string) error {
 	resp, err := http.Get(serverURL)
 	if err != nil {
@@ -200,16 +210,20 @@ func compareAndUpdateFiles(localPreloadPath string) error {
 	for _, remoteFileInfo := range remoteFileInfos {
 		for i, localFileInfo := range localFileInfos {
 			if localFileInfo.Name == remoteFileInfo.Name {
-				if localFileInfo.Version < remoteFileInfo.Version {
-					log.Printf("发现新版本文件: %s, 从版本 %d 更新至 %d\n", localFileInfo.Name, localFileInfo.Version, remoteFileInfo.Version)
-					err := updateFile(localFileInfo.Name, remoteFileInfo)
-					if err != nil {
-						return err
+				if config.CurrentVersion >= remoteFileInfo.MinVersion {
+					if remoteFileInfo.EnabledUpdate == 1 {
+						if localFileInfo.Version < remoteFileInfo.Version {
+							log.Printf("发现新版本文件: %s, 从版本 %d 更新至 %d\n", localFileInfo.Name, localFileInfo.Version, remoteFileInfo.Version)
+							err := updateFile(localFileInfo.Name, remoteFileInfo)
+							if err != nil {
+								return err
+							}
+							localFileInfos[i].Version = remoteFileInfo.Version
+							localFileInfos[i].MD5 = remoteFileInfo.MD5
+						}
+						break
 					}
-					localFileInfos[i].Version = remoteFileInfo.Version
-					localFileInfos[i].MD5 = remoteFileInfo.MD5
 				}
-				break
 			}
 		}
 	}

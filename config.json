@@ -1,4 +1,5 @@
 {
-  "serverURL": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/preload.json",
-  "pollInterval": "5s"
+  "serverURL": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/preload/1169/preload.json",
+  "pollInterval": "5s",
+  "currentVersion":1160
 }

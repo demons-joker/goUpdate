@@ -23,8 +23,9 @@ var logger service.Logger
 type myProgram struct{}
 
 type Config struct {
-	ServerURL    string `json:"serverURL"`
-	PollInterval string `json:"pollInterval"`
+	ServerURL      string `json:"serverURL"`
+	PollInterval   string `json:"pollInterval"`
+	CurrentVersion int    `json:"currentVersion"`
 }
 
 var (
@@ -33,15 +34,18 @@ var (
 	logFilePath  string
 	resourcesDir string
 	pollInterval time.Duration
+	config       *Config
 )
 
 type FileInfo struct {
-	Name    string `json:"Name"`
-	Size    int    `json:"Size"`
-	MD5     string `json:"MD5"`
-	Time    int64  `json:"Time"`
-	Path    string `json:"Path"`
-	Version int    `json:"Version"`
+	Name          string `json:"Name"`
+	Size          int    `json:"Size"`
+	MD5           string `json:"MD5"`
+	Time          int64  `json:"Time"`
+	Path          string `json:"Path"`
+	Version       int    `json:"Version"`
+	MinVersion    int    `json:"MinVersion"`
+	EnabledUpdate int    `json:"EnabledUpdate"`
 }
 
 func (p *myProgram) Start(s service.Service) error {
@@ -79,23 +83,24 @@ func (p *myProgram) Stop(s service.Service) error {
 
 func loadConfig() error {
 
-	configPath := "config.json"
+	// configPath := "config.json"
 
 	// 生产环境获取可执行文件的绝对路径-------start
-	execPath, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	execDir := filepath.Dir(execPath)
+	// execPath, err := os.Executable()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// execDir := filepath.Dir(execPath)
 
 	// 构造配置文件的绝对路径
-	configAbsPath := filepath.Join(execDir, configPath)
+	// configAbsPath := filepath.Join(execDir, configPath)
 	// 生产环境获取可执行文件的绝对路径-------end
 
 	//本地测试用下面这个配置文件
-	// configAbsPath := "./config.json"
+	configAbsPath := "./config.json"
+	execDir := "./"
 
-	config := &Config{}
+	config = &Config{}
 	file, err := os.Open(configAbsPath)
 	if err != nil {
 		appendToLog("failed to open config file" + configAbsPath)
@@ -177,7 +182,6 @@ func updatePreloadJSONIfNeeded() error {
 
 	return compareAndUpdateFiles(localPreloadPath)
 }
-
 func compareAndUpdateFiles(localPreloadPath string) error {
 	resp, err := http.Get(serverURL)
 	if err != nil {
@@ -207,16 +211,20 @@ func compareAndUpdateFiles(localPreloadPath string) error {
 	for _, remoteFileInfo := range remoteFileInfos {
 		for i, localFileInfo := range localFileInfos {
 			if localFileInfo.Name == remoteFileInfo.Name {
-				if localFileInfo.Version < remoteFileInfo.Version {
-					log.Printf("发现新版本文件: %s, 从版本 %d 更新至 %d\n", localFileInfo.Name, localFileInfo.Version, remoteFileInfo.Version)
-					err := updateFile(localFileInfo.Name, remoteFileInfo)
-					if err != nil {
-						return err
+				if config.CurrentVersion >= remoteFileInfo.MinVersion {
+					if remoteFileInfo.EnabledUpdate == 1 {
+						if localFileInfo.Version < remoteFileInfo.Version {
+							log.Printf("本地文件路径 %s,本地文件版本 %d,远程文件版本 %d,当前客户端版本 %d,远程最小起更版本 %d,发现新版本文件: %s, 从版本 %d 更新至 %d\n", localPreloadPath, localFileInfo.Version, remoteFileInfo.Version, config.CurrentVersion, remoteFileInfo.MinVersion, localFileInfo.Name, localFileInfo.Version, remoteFileInfo.Version)
+							err := updateFile(localFileInfo.Name, remoteFileInfo)
+							if err != nil {
+								return err
+							}
+							localFileInfos[i].Version = remoteFileInfo.Version
+							localFileInfos[i].MD5 = remoteFileInfo.MD5
+						}
+						break
 					}
-					localFileInfos[i].Version = remoteFileInfo.Version
-					localFileInfos[i].MD5 = remoteFileInfo.MD5
 				}
-				break
 			}
 		}
 	}
@@ -264,7 +272,7 @@ func writeLocalPreloadJSON(path string, fileInfos []FileInfo) error {
 }
 
 func updateFile(fileName string, fileInfo FileInfo) error {
-	localFilePath := filepath.Join(localDir, fileName+".bin")
+	localFilePath := filepath.Join(localDir, fileName)
 	tempFilePath := localFilePath + ".tmp"
 
 	err := downloadFile(fileInfo.Path, tempFilePath)

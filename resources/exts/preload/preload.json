@@ -1,18 +1,12 @@
 [
   {
-    "Name": "whatsapp",
-    "Size": 216728,
-    "MD5": "14f6957d64abb0bb6d12732664029f51",
-    "Time": 0,
-    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/whatsapp.bin",
-    "Version": 2
-  },
-  {
-    "Name": "zalo",
-    "Size": 53368,
-    "MD5": "8991763a98f68ebf995ea62ac52015cd",
-    "Time": 0,
-    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/zalo.bin",
-    "Version": 3
+    "Name": "Customize.bin",
+    "Size": 9176,
+    "MD5": "9ac03a4272df7a19f040f0a7ce9158ee",
+    "Time": 1736771862519,
+    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/Customize.bin",
+    "Version": 2,
+    "MinVersion": 1150,
+    "EnabledUpdate": 1
   }
 ]
