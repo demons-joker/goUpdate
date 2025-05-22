@@ -130,6 +130,9 @@ func loadConfig() error {
 	return nil
 }
 
+/**
+*计算MD5
+**/
 func calculateMD5(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -152,6 +155,10 @@ func downloadFile(url, filePath string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("服务器返回错误状态码: %d", resp.StatusCode)
+	}
+
 	out, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("无法创建本地文件: %v", err)
@@ -159,30 +166,30 @@ func downloadFile(url, filePath string) error {
 	defer out.Close()
 
 	_, err = io.Copy(out, resp.Body)
-	return err
+	if err != nil {
+		return fmt.Errorf("内容复制失败: %v", err)
+	}
+
+	if err := out.Sync(); err != nil {
+		return fmt.Errorf("文件同步失败: %v", err)
+	}
+
+	return nil
 }
 
+// 下载更新preload.json文件
 func updatePreloadJSONIfNeeded() error {
 	localPreloadPath := filepath.Join(localDir, "preload.json")
-	_, err := os.Stat(localPreloadPath)
-	if err != nil && !os.IsNotExist(err) {
-		appendToLog("failed to stat local preload.json")
-		return fmt.Errorf("failed to stat local preload.json: %w", err)
+	err := downloadFile(serverURL, localPreloadPath)
+	if err != nil {
+		appendToLog("failed to download preload.json")
 	}
 
-	if os.IsNotExist(err) {
-		log.Printf("preload.json 不存在，正在从远端拉取...\n")
-		err = downloadFile(serverURL, localPreloadPath)
-		if err != nil {
-			appendToLog("failed to download preload.json")
-			return fmt.Errorf("failed to download preload.json: %w", err)
-		}
-		return compareAndUpdateFiles(localPreloadPath)
-	}
-
-	return compareAndUpdateFiles(localPreloadPath)
+	return compareAndUpdateFiles()
 }
-func compareAndUpdateFiles(localPreloadPath string) error {
+
+// 对比更新bin文件
+func compareAndUpdateFiles() error {
 	resp, err := http.Get(serverURL)
 	if err != nil {
 		appendToLog("failed to fetch versions")
@@ -203,81 +210,36 @@ func compareAndUpdateFiles(localPreloadPath string) error {
 		return fmt.Errorf("failed to decode versions: %w", err)
 	}
 
-	localFileInfos, err := readLocalPreloadJSON(localPreloadPath)
-	if err != nil {
-		return err
-	}
-
 	for _, remoteFileInfo := range remoteFileInfos {
-		for i, localFileInfo := range localFileInfos {
-			if localFileInfo.Name == remoteFileInfo.Name {
-				if config.CurrentVersion >= remoteFileInfo.MinVersion {
-					if remoteFileInfo.EnabledUpdate == 1 {
-						if localFileInfo.Version < remoteFileInfo.Version {
-							log.Printf("本地文件路径 %s,本地文件版本 %d,远程文件版本 %d,当前客户端版本 %d,远程最小起更版本 %d,发现新版本文件: %s, 从版本 %d 更新至 %d\n", localPreloadPath, localFileInfo.Version, remoteFileInfo.Version, config.CurrentVersion, remoteFileInfo.MinVersion, localFileInfo.Name, localFileInfo.Version, remoteFileInfo.Version)
-							err := updateFile(localFileInfo.Name, remoteFileInfo)
-							if err != nil {
-								return err
-							}
-							localFileInfos[i].Version = remoteFileInfo.Version
-							localFileInfos[i].MD5 = remoteFileInfo.MD5
-						}
-						break
-					}
+		if config.CurrentVersion >= remoteFileInfo.MinVersion {
+			if remoteFileInfo.EnabledUpdate == 1 {
+				// log.Printf("远程文件版本 %d,当前客户端版本 %d,远程最小起更版本 %d,更新至 %d\n", remoteFileInfo.Version, config.CurrentVersion, remoteFileInfo.MinVersion, remoteFileInfo.Version)
+				err := updateFile(remoteFileInfo.Name, remoteFileInfo)
+				if err != nil {
+					return err
 				}
+				break
 			}
 		}
 	}
-
-	// 更新本地 preload.json
-	err = writeLocalPreloadJSON(localPreloadPath, localFileInfos)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func readLocalPreloadJSON(path string) ([]FileInfo, error) {
-	respBody, err := ioutil.ReadFile(path)
-	if err != nil {
-		appendToLog("failed to read local preload.json")
-		return nil, fmt.Errorf("failed to read preload.json: %w", err)
-	}
-
-	var fileInfos []FileInfo
-	err = json.Unmarshal(respBody, &fileInfos)
-	if err != nil {
-		appendToLog("failed to decode local preload.json")
-		return nil, fmt.Errorf("failed to decode preload.json: %w", err)
-	}
-
-	return fileInfos, nil
-}
-
-func writeLocalPreloadJSON(path string, fileInfos []FileInfo) error {
-	data, err := json.MarshalIndent(fileInfos, "", "  ")
-	if err != nil {
-		appendToLog("failed to marshal local preload.json")
-		return fmt.Errorf("failed to marshal preload.json: %w", err)
-	}
-
-	err = ioutil.WriteFile(path, data, 0644)
-	if err != nil {
-		appendToLog("failed to write local preload.json")
-		return fmt.Errorf("failed to write preload.json: %w", err)
-	}
-
 	return nil
 }
 
 func updateFile(fileName string, fileInfo FileInfo) error {
 	localFilePath := filepath.Join(localDir, fileName)
-	tempFilePath := localFilePath + ".tmp"
-
-	err := downloadFile(fileInfo.Path, tempFilePath)
+	localMD5, err := calculateMD5(localFilePath)
 	if err != nil {
-		appendToLog("failed to download " + localFilePath)
+		appendToLog("failed to open " + localFilePath + "err :" + err.Error())
+		return fmt.Errorf("failed to open %s: %w", localFilePath, err)
+	}
+	if localMD5 == fileInfo.MD5 {
+		return nil
+	}
+	tempFilePath := localFilePath + ".tmp"
+	appendToLog("tempFilePath url " + tempFilePath)
+	err = downloadFile(fileInfo.Path, tempFilePath)
+	if err != nil {
+		appendToLog("failed to download " + localFilePath + "err :" + err.Error())
 		return fmt.Errorf("failed to download %s: %w", fileName, err)
 	}
 

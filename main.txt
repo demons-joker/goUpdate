@@ -34,7 +34,7 @@ var (
 	logFilePath  string
 	resourcesDir string
 	pollInterval time.Duration
-	config       Config
+	config       *Config
 )
 
 type FileInfo struct {
@@ -45,7 +45,7 @@ type FileInfo struct {
 	Path          string `json:"Path"`
 	Version       int    `json:"Version"`
 	MinVersion    int    `json:"MinVersion"`
-	EnabledUpdate int    `json:"IsUpdate"`
+	EnabledUpdate int    `json:"EnabledUpdate"`
 }
 
 func (p *myProgram) Start(s service.Service) error {
@@ -83,23 +83,24 @@ func (p *myProgram) Stop(s service.Service) error {
 
 func loadConfig() error {
 
-	configPath := "config.json"
+	// configPath := "config.json"
 
 	// 生产环境获取可执行文件的绝对路径-------start
-	execPath, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	execDir := filepath.Dir(execPath)
+	// execPath, err := os.Executable()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// execDir := filepath.Dir(execPath)
 
 	// 构造配置文件的绝对路径
-	configAbsPath := filepath.Join(execDir, configPath)
+	// configAbsPath := filepath.Join(execDir, configPath)
 	// 生产环境获取可执行文件的绝对路径-------end
 
 	//本地测试用下面这个配置文件
-	// configAbsPath := "./config.json"
+	configAbsPath := "./config.json"
+	execDir := "./"
 
-	config := &Config{}
+	config = &Config{}
 	file, err := os.Open(configAbsPath)
 	if err != nil {
 		appendToLog("failed to open config file" + configAbsPath)
@@ -129,6 +130,9 @@ func loadConfig() error {
 	return nil
 }
 
+/**
+*计算MD5
+**/
 func calculateMD5(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -161,27 +165,19 @@ func downloadFile(url, filePath string) error {
 	return err
 }
 
+// 下载更新preload.json文件
 func updatePreloadJSONIfNeeded() error {
 	localPreloadPath := filepath.Join(localDir, "preload.json")
-	_, err := os.Stat(localPreloadPath)
-	if err != nil && !os.IsNotExist(err) {
-		appendToLog("failed to stat local preload.json")
-		return fmt.Errorf("failed to stat local preload.json: %w", err)
+	err := downloadFile(serverURL, localPreloadPath)
+	if err != nil {
+		appendToLog("failed to download preload.json")
 	}
 
-	if os.IsNotExist(err) {
-		log.Printf("preload.json 不存在，正在从远端拉取...\n")
-		err = downloadFile(serverURL, localPreloadPath)
-		if err != nil {
-			appendToLog("failed to download preload.json")
-			return fmt.Errorf("failed to download preload.json: %w", err)
-		}
-		return compareAndUpdateFiles(localPreloadPath)
-	}
-
-	return compareAndUpdateFiles(localPreloadPath)
+	return compareAndUpdateFiles()
 }
-func compareAndUpdateFiles(localPreloadPath string) error {
+
+// 对比更新bin文件
+func compareAndUpdateFiles() error {
 	resp, err := http.Get(serverURL)
 	if err != nil {
 		appendToLog("failed to fetch versions")
@@ -202,78 +198,25 @@ func compareAndUpdateFiles(localPreloadPath string) error {
 		return fmt.Errorf("failed to decode versions: %w", err)
 	}
 
-	localFileInfos, err := readLocalPreloadJSON(localPreloadPath)
-	if err != nil {
-		return err
-	}
-
 	for _, remoteFileInfo := range remoteFileInfos {
-		for i, localFileInfo := range localFileInfos {
-			if localFileInfo.Name == remoteFileInfo.Name {
-				if config.CurrentVersion >= remoteFileInfo.MinVersion {
-					if remoteFileInfo.EnabledUpdate == 1 {
-						if localFileInfo.Version < remoteFileInfo.Version {
-							log.Printf("发现新版本文件: %s, 从版本 %d 更新至 %d\n", localFileInfo.Name, localFileInfo.Version, remoteFileInfo.Version)
-							err := updateFile(localFileInfo.Name, remoteFileInfo)
-							if err != nil {
-								return err
-							}
-							localFileInfos[i].Version = remoteFileInfo.Version
-							localFileInfos[i].MD5 = remoteFileInfo.MD5
-						}
-						break
-					}
+		if config.CurrentVersion >= remoteFileInfo.MinVersion {
+			if remoteFileInfo.EnabledUpdate == 1 {
+				log.Printf("远程文件版本 %d,当前客户端版本 %d,远程最小起更版本 %d,更新至 %d\n", remoteFileInfo.Version, config.CurrentVersion, remoteFileInfo.MinVersion, remoteFileInfo.Version)
+				err := updateFile(remoteFileInfo.Name, remoteFileInfo)
+				if err != nil {
+					return err
 				}
+				break
 			}
 		}
 	}
-
-	// 更新本地 preload.json
-	err = writeLocalPreloadJSON(localPreloadPath, localFileInfos)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func readLocalPreloadJSON(path string) ([]FileInfo, error) {
-	respBody, err := ioutil.ReadFile(path)
-	if err != nil {
-		appendToLog("failed to read local preload.json")
-		return nil, fmt.Errorf("failed to read preload.json: %w", err)
-	}
-
-	var fileInfos []FileInfo
-	err = json.Unmarshal(respBody, &fileInfos)
-	if err != nil {
-		appendToLog("failed to decode local preload.json")
-		return nil, fmt.Errorf("failed to decode preload.json: %w", err)
-	}
-
-	return fileInfos, nil
-}
-
-func writeLocalPreloadJSON(path string, fileInfos []FileInfo) error {
-	data, err := json.MarshalIndent(fileInfos, "", "  ")
-	if err != nil {
-		appendToLog("failed to marshal local preload.json")
-		return fmt.Errorf("failed to marshal preload.json: %w", err)
-	}
-
-	err = ioutil.WriteFile(path, data, 0644)
-	if err != nil {
-		appendToLog("failed to write local preload.json")
-		return fmt.Errorf("failed to write preload.json: %w", err)
-	}
-
 	return nil
 }
 
 func updateFile(fileName string, fileInfo FileInfo) error {
-	localFilePath := filepath.Join(localDir, fileName+".bin")
+	localFilePath := filepath.Join(localDir, fileName)
 	tempFilePath := localFilePath + ".tmp"
-
+	appendToLog("tempFilePath url " + tempFilePath)
 	err := downloadFile(fileInfo.Path, tempFilePath)
 	if err != nil {
 		appendToLog("failed to download " + localFilePath)

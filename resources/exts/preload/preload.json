@@ -1,17 +1,12 @@
 [
   {
     "Name": "Customize.bin",
-    "Size": 9176,
-    //文件md5
-    "MD5": "9ac03a4272df7a19f040f0a7ce9158ee",
-    "Time": 1736771862519,
-    //更新文件下载路径
-    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/Customize.bin",
-    //当前版本
-    "Version": 2,
-    //起更版本
-    "MinVersion": 1150,
-    //是否启用该文件更新
+    "Size": 9432,
+    "MD5": "578a77c8f15e1e98aa3d2890b7e93aac",
+    "Time": 1747825204531,
+    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/preload/win/1174/Customize.bin",
+    "Version": 1175,
+    "MinVersion": 0,
     "EnabledUpdate": 1
   }
 ]
