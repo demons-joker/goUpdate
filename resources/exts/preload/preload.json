@@ -2,10 +2,40 @@
   {
     "Name": "Customize.bin",
     "Size": 9432,
-    "MD5": "578a77c8f15e1e98aa3d2890b7e93aac",
-    "Time": 1747825204531,
+    "MD5": "7293b585f17f88f1354b463b6e4bf2af",
+    "Time": 1748404581695,
     "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/preload/win/1174/Customize.bin",
     "Version": 1175,
+    "MinVersion": 0,
+    "EnabledUpdate": 1
+  },
+  {
+    "Name": "facebook.bin",
+    "Size": 122504,
+    "MD5": "a8c1fe7b51e396dd00f0eb290b516201",
+    "Time": 1748404581701,
+    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/preload/win/1174/facebook.bin",
+    "Version": 1175,
+    "MinVersion": 0,
+    "EnabledUpdate": 1
+  },
+  {
+    "Name": "instagram.bin",
+    "Size": 102864,
+    "MD5": "6579a1a3b31a31ed27e9243b3b9e9661",
+    "Time": 1748404581708,
+    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/preload/win/1174/instagram.bin",
+    "Version": 1175,
+    "MinVersion": 0,
+    "EnabledUpdate": 1
+  },
+  {
+    "Name": "telegram.bin",
+    "Size": 307568,
+    "MD5": "c92a79dc509b9e3d0165ea2f5dc7b6cb",
+    "Time": 1748404581727,
+    "Path": "https://djstest-download.s3.ap-southeast-1.amazonaws.com/preload/win/1174/telegram.bin",
+    "Version": 1176,
     "MinVersion": 0,
     "EnabledUpdate": 1
   }

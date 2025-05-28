@@ -191,7 +191,11 @@ func updatePreloadJSONIfNeeded() error {
 }
 
 // 对比更新bin文件
+// compareAndUpdateFiles 从服务器获取文件版本信息，并与本地配置比较
+// 对于需要更新的文件（满足版本条件且启用更新），执行更新操作
+// 返回可能出现的错误，包括网络请求、响应解析和文件更新过程中的错误
 func compareAndUpdateFiles() error {
+	appendToLog("start to fetch versions")
 	resp, err := http.Get(serverURL)
 	if err != nil {
 		appendToLog("failed to fetch versions")
@@ -218,9 +222,9 @@ func compareAndUpdateFiles() error {
 				// log.Printf("远程文件版本 %d,当前客户端版本 %d,远程最小起更版本 %d,更新至 %d\n", remoteFileInfo.Version, config.CurrentVersion, remoteFileInfo.MinVersion, remoteFileInfo.Version)
 				err := updateFile(remoteFileInfo.Name, remoteFileInfo)
 				if err != nil {
-					return err
+					appendToLog("failed to update file: " + remoteFileInfo.Name + ", error: " + err.Error())
 				}
-				break
+				continue
 			}
 		}
 	}
@@ -235,6 +239,7 @@ func updateFile(fileName string, fileInfo FileInfo) error {
 		return fmt.Errorf("failed to open %s: %w", localFilePath, err)
 	}
 	if localMD5 == fileInfo.MD5 {
+		appendToLog(fileName + " is up to date")
 		return nil
 	}
 	tempFilePath := localFilePath + ".tmp"
