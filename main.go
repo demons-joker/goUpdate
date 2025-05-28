@@ -83,22 +83,24 @@ func (p *myProgram) Stop(s service.Service) error {
 
 func loadConfig() error {
 
-	// configPath := "config.json"
-
 	// 生产环境获取可执行文件的绝对路径-------start
-	// execPath, err := os.Executable()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// execDir := filepath.Dir(execPath)
+	configPath := "config.json"
+
+	execPath, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	execDir := filepath.Dir(execPath)
 
 	// 构造配置文件的绝对路径
-	// configAbsPath := filepath.Join(execDir, configPath)
+	configAbsPath := filepath.Join(execDir, configPath)
+
 	// 生产环境获取可执行文件的绝对路径-------end
 
-	//本地测试用下面这个配置文件
-	configAbsPath := "./config.json"
-	execDir := "./"
+	//本地测试用下面这个配置文件-------------start
+	// configAbsPath := "./config.json"
+	// execDir := "./"
+	//-----end--------------------------
 
 	config = &Config{}
 	file, err := os.Open(configAbsPath)
