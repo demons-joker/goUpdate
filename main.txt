@@ -83,22 +83,24 @@ func (p *myProgram) Stop(s service.Service) error {
 
 func loadConfig() error {
 
-	// configPath := "config.json"
-
 	// 生产环境获取可执行文件的绝对路径-------start
-	// execPath, err := os.Executable()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// execDir := filepath.Dir(execPath)
+	configPath := "config.json"
+
+	execPath, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	execDir := filepath.Dir(execPath)
 
 	// 构造配置文件的绝对路径
-	// configAbsPath := filepath.Join(execDir, configPath)
+	configAbsPath := filepath.Join(execDir, configPath)
+
 	// 生产环境获取可执行文件的绝对路径-------end
 
-	//本地测试用下面这个配置文件
-	configAbsPath := "./config.json"
-	execDir := "./"
+	//本地测试用下面这个配置文件-------------start
+	// configAbsPath := "./config.json"
+	// execDir := "./"
+	//-----end--------------------------
 
 	config = &Config{}
 	file, err := os.Open(configAbsPath)
@@ -155,6 +157,10 @@ func downloadFile(url, filePath string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("服务器返回错误状态码: %d", resp.StatusCode)
+	}
+
 	out, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("无法创建本地文件: %v", err)
@@ -162,7 +168,15 @@ func downloadFile(url, filePath string) error {
 	defer out.Close()
 
 	_, err = io.Copy(out, resp.Body)
-	return err
+	if err != nil {
+		return fmt.Errorf("内容复制失败: %v", err)
+	}
+
+	if err := out.Sync(); err != nil {
+		return fmt.Errorf("文件同步失败: %v", err)
+	}
+
+	return nil
 }
 
 // 下载更新preload.json文件
@@ -177,7 +191,11 @@ func updatePreloadJSONIfNeeded() error {
 }
 
 // 对比更新bin文件
+// compareAndUpdateFiles 从服务器获取文件版本信息，并与本地配置比较
+// 对于需要更新的文件（满足版本条件且启用更新），执行更新操作
+// 返回可能出现的错误，包括网络请求、响应解析和文件更新过程中的错误
 func compareAndUpdateFiles() error {
+	appendToLog("start to fetch versions")
 	resp, err := http.Get(serverURL)
 	if err != nil {
 		appendToLog("failed to fetch versions")
@@ -201,12 +219,12 @@ func compareAndUpdateFiles() error {
 	for _, remoteFileInfo := range remoteFileInfos {
 		if config.CurrentVersion >= remoteFileInfo.MinVersion {
 			if remoteFileInfo.EnabledUpdate == 1 {
-				log.Printf("远程文件版本 %d,当前客户端版本 %d,远程最小起更版本 %d,更新至 %d\n", remoteFileInfo.Version, config.CurrentVersion, remoteFileInfo.MinVersion, remoteFileInfo.Version)
+				// log.Printf("远程文件版本 %d,当前客户端版本 %d,远程最小起更版本 %d,更新至 %d\n", remoteFileInfo.Version, config.CurrentVersion, remoteFileInfo.MinVersion, remoteFileInfo.Version)
 				err := updateFile(remoteFileInfo.Name, remoteFileInfo)
 				if err != nil {
-					return err
+					appendToLog("failed to update file: " + remoteFileInfo.Name + ", error: " + err.Error())
 				}
-				break
+				continue
 			}
 		}
 	}
@@ -215,11 +233,20 @@ func compareAndUpdateFiles() error {
 
 func updateFile(fileName string, fileInfo FileInfo) error {
 	localFilePath := filepath.Join(localDir, fileName)
+	localMD5, err := calculateMD5(localFilePath)
+	if err != nil {
+		appendToLog("failed to open " + localFilePath + "err :" + err.Error())
+		return fmt.Errorf("failed to open %s: %w", localFilePath, err)
+	}
+	if localMD5 == fileInfo.MD5 {
+		appendToLog(fileName + " is up to date")
+		return nil
+	}
 	tempFilePath := localFilePath + ".tmp"
 	appendToLog("tempFilePath url " + tempFilePath)
-	err := downloadFile(fileInfo.Path, tempFilePath)
+	err = downloadFile(fileInfo.Path, tempFilePath)
 	if err != nil {
-		appendToLog("failed to download " + localFilePath)
+		appendToLog("failed to download " + localFilePath + "err :" + err.Error())
 		return fmt.Errorf("failed to download %s: %w", fileName, err)
 	}
 

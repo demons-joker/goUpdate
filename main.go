@@ -26,6 +26,7 @@ type Config struct {
 	ServerURL      string `json:"serverURL"`
 	PollInterval   string `json:"pollInterval"`
 	CurrentVersion int    `json:"currentVersion"`
+	Name           string `json:"name"`
 }
 
 var (
@@ -117,11 +118,19 @@ func loadConfig() error {
 
 	serverURL = config.ServerURL
 	if runtime.GOOS == "darwin" {
-		resourcesDir = "../../Resources/exts/preload"
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		resourcesDir = filepath.Join(homeDir, config.Name)
 	} else {
-		resourcesDir = "./resources/exts/preload"
+		resourcesDir = filepath.Join(execDir, "./resources/exts/preload")
 	}
-	localDir = filepath.Join(execDir, resourcesDir)
+	// 确保目录存在
+	if err := os.MkdirAll(resourcesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", resourcesDir, err)
+	}
+	localDir = resourcesDir
 	logFilePath = filepath.Join(execDir, "update.log")
 	pollDuration, err := time.ParseDuration(config.PollInterval)
 	if err != nil {
