@@ -122,7 +122,7 @@ func loadConfig() error {
 		if err != nil {
 			return fmt.Errorf("failed to get home directory: %w", err)
 		}
-		resourcesDir = filepath.Join(homeDir, "preload", config.Name)
+		resourcesDir = filepath.Join(homeDir, config.Name, "preload")
 	} else {
 		resourcesDir = filepath.Join(execDir, "./resources/exts/preload")
 	}
